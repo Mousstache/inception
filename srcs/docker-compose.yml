@@ -1,0 +1,82 @@
+version: '3'
+
+services:
+  mariadb:
+    image: mariadb
+    container_name: mariadb
+    build:
+      context: ./requirements/mariadb
+      dockerfile: Dockerfile
+    volumes:
+      - mariadb:/var/lib/mysql
+    expose:
+      - "3306"
+    networks:
+      - inception
+    restart: unless-stopped
+    env_file: .env
+    healthcheck:
+      test: mysqladmin ping --host=localhost -p${SQL_ROOT_PASSWORD}
+      interval: 5s
+      timeout: 1s
+      retries: 20
+      start_period: 5s
+
+  wordpress:
+    image: wordpress
+    container_name: wordpress
+    build:
+      context: ./requirements/wordpress
+      dockerfile: Dockerfile
+    volumes:
+      - wordpress:/var/www/html/wordpress
+    expose:
+      - "9000"
+    networks:
+      - inception
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      mariadb:
+        condition: service_healthy    
+
+  nginx:
+    image: nginx
+    container_name: nginx
+    build:
+      context: ./requirements/nginx
+      dockerfile: Dockerfile	
+    volumes:
+      - wordpress:/var/www/html/wordpress
+    depends_on:
+      - wordpress
+    ports:
+      - "443:443"
+    networks:
+      - inception
+    restart: unless-stopped
+    env_file: .env
+    healthcheck:
+      test: 'curl -kfsSL https://localhost:443/status'
+      interval: 5s
+      timeout: 1s
+      retries: 10
+      start_period: 5s
+
+volumes:
+  mariadb:
+    driver: local
+    driver_opts:
+      type: 'none'
+      o: 'bind'
+      device: '/home/yatang/data/mariadb'
+  wordpress:
+    driver: local
+    driver_opts:
+      type: 'none'
+      o: 'bind'
+      device: '/home/yatang/data/wordpress'
+
+networks:
+  inception:
+    name: inception
